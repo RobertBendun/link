@@ -1,3 +1,7 @@
+# DO NOT USE THIS
+
+Go to the [forked source](https://github.com/Ableton/link), this version is for usage by [Harmonia](https://github.com/RobertBendun/harmonia).
+
 # Ableton Link
 
 This is the codebase for Ableton Link, a technology that synchronizes musical beat, tempo,
