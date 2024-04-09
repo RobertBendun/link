@@ -741,6 +741,15 @@ private:
     Controller* mpController;
   };
 
+public:
+    // TODO: Be better
+    SessionState get_internal_session_state()
+    {
+      std::lock_guard guard{mSessionStateGuard};
+      return mSessionState;
+    }
+private:
+
   TempoCallback mTempoCallback;
   StartStopStateCallback mStartStopStateCallback;
   Clock mClock;

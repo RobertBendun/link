@@ -22,6 +22,7 @@
 
 #pragma once
 
+#include <ableton/link/GhostXForm.hpp>
 #include <ableton/platforms/Config.hpp>
 #include <chrono>
 #include <mutex>
@@ -364,12 +365,14 @@ public:
     void setIsPlayingAndRequestBeatAtTime(
       bool isPlaying, std::chrono::microseconds time, double beat, double quantum);
 
-  private:
+private:
     friend BasicLink<Clock>;
     link::ApiState mOriginalState;
     link::ApiState mState;
     bool mbRespectQuantum;
   };
+
+  inline link::GhostXForm gHostForm();
 
 private:
   using Controller = ableton::link::Controller<link::PeerCountCallback,

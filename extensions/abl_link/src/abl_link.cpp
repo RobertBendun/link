@@ -211,4 +211,15 @@ extern "C"
       ->setIsPlayingAndRequestBeatAtTime(
         is_playing, std::chrono::microseconds{time}, beat, quantum);
   }
+
+
+	int64_t abl_link_ghost_to_host(abl_link link, int64_t time_ghost)
+	{
+		return reinterpret_cast<ableton::Link *>(link.impl)->gHostForm().ghostToHost(std::chrono::microseconds(time_ghost)).count();
+	}
+
+	int64_t abl_link_host_to_ghost(abl_link link, int64_t time_host)
+	{
+		return reinterpret_cast<ableton::Link *>(link.impl)->gHostForm().hostToGhost(std::chrono::microseconds(time_host)).count();
+	}
 }

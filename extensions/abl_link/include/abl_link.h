@@ -347,6 +347,12 @@ extern "C"
     double beat,
     double quantum);
 
+	/*! @brief Convert global host time to host time */
+	int64_t abl_link_ghost_to_host(abl_link link, int64_t time_ghost);
+
+	/*! @brief Convert host time to global host time */
+	int64_t abl_link_host_to_ghost(abl_link link, int64_t time_host);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif // __cplusplus

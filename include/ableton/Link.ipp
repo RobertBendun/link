@@ -160,6 +160,12 @@ inline void BasicLink<Clock>::commitAppSessionState(
     detail::toIncomingClientState(state.mState, state.mOriginalState, mClock.micros()));
 }
 
+template<typename Clock>
+inline link::GhostXForm BasicLink<Clock>::gHostForm()
+{
+	return mController.get_internal_session_state().ghostXForm;
+}
+
 // Link::SessionState
 
 template <typename Clock>
