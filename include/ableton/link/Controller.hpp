@@ -745,7 +745,7 @@ public:
     // TODO: Be better
     SessionState get_internal_session_state()
     {
-      std::lock_guard guard{mSessionStateGuard};
+      std::lock_guard<std::mutex> guard{mSessionStateGuard};
       return mSessionState;
     }
 private:
