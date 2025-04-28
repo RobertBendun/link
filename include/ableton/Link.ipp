@@ -30,7 +30,7 @@ template <typename Clock>
 inline typename BasicLink<Clock>::SessionState toSessionState(
   const link::ClientState& state, const bool isConnected)
 {
-  return {{state.timeline, {state.startStopState.isPlaying, state.startStopState.time}},
+  return {{state.timeline, {state.startStopState.isPlaying, state.startStopState.time}, {state.groupState.isPlaying, state.groupState.time, state.groupState.group_id}},
     isConnected};
 }
 
@@ -46,7 +46,16 @@ inline link::IncomingClientState toIncomingClientState(const link::ApiState& sta
       ? link::OptionalClientStartStopState{{state.startStopState.isPlaying,
           state.startStopState.time, timestamp}}
       : link::OptionalClientStartStopState{};
-  return {timeline, startStopState, timestamp};
+
+	const auto groupState =
+		originalState.groupState != state.groupState
+			? link::OptionalGroupState{{state.groupState.isPlaying,
+					state.groupState.time,
+					timestamp,
+					state.groupState.group_id}}
+		 : link::OptionalGroupState{};
+
+  return {timeline, startStopState, groupState, timestamp};
 }
 
 } // namespace detail
@@ -289,6 +298,29 @@ inline void BasicLink<Clock>::SessionState::setIsPlayingAndRequestBeatAtTime(
 {
   mState.startStopState = {isPlaying, time};
   requestBeatAtStartPlayingTime(beat, quantum);
+}
+
+template <typename Clock>
+inline bool BasicLink<Clock>::SessionState::setIsPlayingInGroup(
+	bool isPlaying, std::chrono::microseconds time, std::string_view group)
+{
+	link::GroupId gid = {};
+	if (group.size() > gid.size()) {
+		// TODO(diana): Better error handling
+		return false;
+	}
+	std::copy(group.begin(), group.end(), gid.begin());
+  mState.groupState = {isPlaying, time, gid};
+	return true;
+}
+
+template <typename Clock>
+inline std::optional<std::string> BasicLink<Clock>::SessionState::isPlayingInGroup() const
+{
+	if (mState.groupState.isPlaying) {
+		return std::string((char const*)&mState.groupState.group_id[0]);
+	}
+	return std::nullopt;
 }
 
 } // namespace ableton

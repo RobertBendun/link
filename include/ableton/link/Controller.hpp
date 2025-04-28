@@ -52,7 +52,7 @@ inline SessionState initSessionState(const Tempo tempo, const Clock& clock)
 {
   using namespace std::chrono;
   return {clampTempo(Timeline{tempo, Beats{0.}, microseconds{0}}),
-    StartStopState{false, Beats{0.}, microseconds{0}}, initXForm(clock)};
+    StartStopState{false, Beats{0.}, microseconds{0}}, GroupState{}, initXForm(clock)};
 }
 
 inline ClientState initClientState(const SessionState& sessionState)
@@ -67,7 +67,7 @@ inline RtClientState initRtClientState(const ClientState& clientState)
 {
   using namespace std::chrono;
   return {
-    clientState.timeline, clientState.startStopState, microseconds{0}, microseconds{0}};
+    clientState.timeline, clientState.startStopState, clientState.groupState, microseconds{0}, microseconds{0}};
 }
 
 // The timespan in which local modifications to the timeline will be
@@ -83,6 +83,16 @@ inline ClientStartStopState selectPreferredStartStopState(
            ? startStopState
            : currentStartStopState;
 }
+
+inline ClientGroupState selectPreferredGroupState(
+  const ClientGroupState currentGroupState,
+  const ClientGroupState groupState)
+{
+	return groupState.timestamp > currentGroupState.timestamp
+		? groupState
+		: currentGroupState;
+}
+
 
 inline ClientStartStopState mapStartStopStateFromSessionToClient(
   const StartStopState& sessionStartStopState,
@@ -104,6 +114,17 @@ inline StartStopState mapStartStopStateFromClientToSession(
     sessionTimeline.toBeats(xForm.hostToGhost(clientStartStopState.time));
   const auto timestamp = xForm.hostToGhost(clientStartStopState.timestamp);
   return StartStopState{clientStartStopState.isPlaying, sessionBeats, timestamp};
+}
+
+inline GroupState mapGroupStateFromClientToSession(
+  const ClientGroupState& clientGroupState,
+  const Timeline& sessionTimeline,
+  const GhostXForm& xForm)
+{
+  const auto sessionBeats =
+    sessionTimeline.toBeats(xForm.hostToGhost(clientGroupState.time));
+  const auto timestamp = xForm.hostToGhost(clientGroupState.timestamp);
+  return GroupState{clientGroupState.isPlaying, sessionBeats, timestamp, clientGroupState.group_id};
 }
 
 } // namespace detail
@@ -242,6 +263,7 @@ public:
           clientState.startStopState, *newClientState.startStopState);
         clientState.startStopState = *newClientState.startStopState;
       }
+			assert(0 && "TODO: not implemented yet");
     });
     mIo->async([this, newClientState] { handleClientState(newClientState); });
   }
@@ -262,8 +284,10 @@ public:
         now - mRtClientState.timelineTimestamp > detail::kLocalModGracePeriod;
       const auto startStopStateGracePeriodOver =
         now - mRtClientState.startStopStateTimestamp > detail::kLocalModGracePeriod;
+      const auto groupStateGracePeriodOver =
+        now - mRtClientState.groupStateTimestamp > detail::kLocalModGracePeriod;
 
-      if (timelineGracePeriodOver || startStopStateGracePeriodOver)
+      if (timelineGracePeriodOver || startStopStateGracePeriodOver || groupStateGracePeriodOver)
       {
         const auto clientState = mClientState.getRt();
 
@@ -277,16 +301,22 @@ public:
         {
           mRtClientState.startStopState = clientState.startStopState;
         }
+
+				if (groupStateGracePeriodOver
+						&& clientState.groupState != mRtClientState.groupState)
+				{
+					mRtClientState.groupState = clientState.groupState;
+				}
       }
     }
 
-    return {mRtClientState.timeline, mRtClientState.startStopState};
+    return {mRtClientState.timeline, mRtClientState.startStopState, mRtClientState.groupState};
   }
 
   // should only be called from the audio thread
   void setClientStateRtSafe(IncomingClientState newClientState)
   {
-    if (!newClientState.timeline && !newClientState.startStopState)
+    if (!newClientState.timeline && !newClientState.startStopState && !newClientState.groupState)
     {
       return;
     }
@@ -302,6 +332,13 @@ public:
       *newClientState.startStopState = detail::selectPreferredStartStopState(
         mRtClientState.startStopState, *newClientState.startStopState);
     }
+
+		if (newClientState.groupState)
+		{
+      // Prevent updating client group state with an outdated group state
+			*newClientState.groupState = detail::selectPreferredGroupState(
+				mRtClientState.groupState, *newClientState.groupState);
+		}
 
     // This flag ensures that mRtClientState is only updated after all incoming
     // client states were processed
@@ -320,6 +357,11 @@ public:
       mRtClientState.startStopState = *newClientState.startStopState;
       mRtClientState.startStopStateTimestamp = makeRtTimestamp(now);
     }
+		if (newClientState.groupState)
+		{
+      mRtClientState.groupState = *newClientState.groupState;
+      mRtClientState.groupStateTimestamp = makeRtTimestamp(now);
+		}
   }
 
 private:
@@ -349,7 +391,7 @@ private:
     // Push the change to the discovery service
     mDiscovery.updateNodeState(
       std::make_pair(NodeState{mNodeId, mSessionId, mSessionState.timeline,
-                       mSessionState.startStopState},
+                       mSessionState.startStopState, mSessionState.groupState},
         mSessionState.ghostXForm));
   }
 
@@ -466,12 +508,30 @@ private:
       }
     }
 
+		// TODO(diana): add mGroupStateSyncEnabled
+		if (clientState.groupState)
+		{
+			const auto newGhostTime = mSessionState.ghostXForm.hostToGhost(clientState.groupState->timestamp);
+			if (newGhostTime > mSessionState.groupState.timestamp)
+			{
+        mClientState.update([&](ClientState& currentClientState) {
+          mSessionState.groupState =
+            detail::mapGroupStateFromClientToSession(*clientState.groupState,
+              mSessionState.timeline, mSessionState.ghostXForm);
+          currentClientState.groupState = *clientState.groupState;
+        });
+
+        mustUpdateDiscovery = true;
+      }
+		}
+
     if (mustUpdateDiscovery)
     {
       updateDiscovery();
     }
 
     invokeStartStopStateCallbackIfChanged();
+		// TODO(diana): groupSateCallback
   }
 
   void handleRtClientState(IncomingClientState clientState)
@@ -487,6 +547,13 @@ private:
         *clientState.startStopState = detail::selectPreferredStartStopState(
           currentClientState.startStopState, *clientState.startStopState);
         currentClientState.startStopState = *clientState.startStopState;
+      }
+      if (clientState.groupState)
+      {
+        // Prevent updating client group state with an outdated group state
+        *clientState.groupState = detail::selectPreferredGroupState(
+          currentClientState.groupState, *clientState.groupState);
+        currentClientState.groupState = *clientState.groupState;
       }
     });
 
@@ -590,7 +657,12 @@ private:
         mStartStopStateBuffer.write(*clientState.startStopState);
       }
 
-      if (clientState.timeline || clientState.startStopState)
+			if (clientState.groupState)
+			{
+				mGroupStateBuffer.write(*clientState.groupState);
+			}
+
+      if (clientState.timeline || clientState.startStopState || clientState.groupState)
       {
         mCallbackDispatcher.invoke();
       }
@@ -629,6 +701,10 @@ private:
       {
         clientState.startStopState = sss;
       }
+			if (auto gs = mGroupStateBuffer.readNew())
+			{
+				clientState.groupState = gs;
+			}
       return clientState;
     }
 
@@ -637,6 +713,7 @@ private:
     // latest set value from either optional.
     TripleBuffer<std::pair<std::chrono::microseconds, Timeline>> mTimelineBuffer;
     TripleBuffer<ClientStartStopState> mStartStopStateBuffer;
+    TripleBuffer<ClientGroupState> mGroupStateBuffer;
     CallbackDispatcher mCallbackDispatcher;
   };
 

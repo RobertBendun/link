@@ -25,6 +25,8 @@
 #include <ableton/platforms/Config.hpp>
 #include <chrono>
 #include <mutex>
+#include <optional>
+#include <string_view>
 
 namespace ableton
 {
@@ -363,6 +365,10 @@ public:
      */
     void setIsPlayingAndRequestBeatAtTime(
       bool isPlaying, std::chrono::microseconds time, double beat, double quantum);
+
+    bool setIsPlayingInGroup(bool isPlaying, std::chrono::microseconds time, std::string_view group);
+
+		std::optional<std::string> isPlayingInGroup() const;
 
   private:
     friend BasicLink<Clock>;

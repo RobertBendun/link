@@ -398,6 +398,7 @@ struct Deserialize<std::vector<T, Alloc>>
   }
 };
 
+
 // 2-tuple
 template <typename X, typename Y>
 std::uint32_t sizeInByteStream(const std::tuple<X, Y>& tup)
@@ -457,6 +458,41 @@ struct Deserialize<std::tuple<X, Y, Z>>
       std::move(zres.second));
   }
 };
+
+// TODO(diana): This could be fixed with C++ template magic but I don't know if I want to waste time for it
+// 4-tuple
+template <typename X, typename Y, typename Z, typename A>
+std::uint32_t sizeInByteStream(const std::tuple<X, Y, Z, A>& tup)
+{
+  return sizeInByteStream(std::get<0>(tup)) + sizeInByteStream(std::get<1>(tup))
+         + sizeInByteStream(std::get<2>(tup)) + sizeInByteStream(std::get<3>(tup));
+}
+
+template <typename X, typename Y, typename Z, typename A, typename It>
+It toNetworkByteStream(const std::tuple<X, Y, Z, A>& tup, It out)
+{
+	return toNetworkByteStream(std::get<3>(tup), toNetworkByteStream(
+    std::get<2>(tup), toNetworkByteStream(std::get<1>(tup),
+                        toNetworkByteStream(std::get<0>(tup), std::move(out)))));
+}
+
+template <typename X, typename Y, typename Z, typename A>
+struct Deserialize<std::tuple<X, Y, Z, A>>
+{
+  template <typename It>
+  static std::pair<std::tuple<X, Y, Z, A>, It> fromNetworkByteStream(It begin, It end)
+  {
+    using namespace std;
+    auto xres = Deserialize<X>::fromNetworkByteStream(begin, end);
+    auto yres = Deserialize<Y>::fromNetworkByteStream(xres.second, end);
+    auto zres = Deserialize<Z>::fromNetworkByteStream(yres.second, end);
+    auto ares = Deserialize<A>::fromNetworkByteStream(zres.second, end);
+    return make_pair(
+      make_tuple(std::move(xres.first), std::move(yres.first), std::move(zres.first), std::move(ares.first)),
+      std::move(ares.second));
+  }
+};
+
 
 } // namespace discovery
 } // namespace ableton

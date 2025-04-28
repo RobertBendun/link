@@ -20,6 +20,7 @@
 #pragma once
 
 #include <ableton/link/Optional.hpp>
+#include <ableton/link/Group.hpp>
 #include <ableton/link/StartStopState.hpp>
 #include <ableton/link/Timeline.hpp>
 #include <ableton/link/TripleBuffer.hpp>
@@ -30,6 +31,7 @@ namespace ableton
 namespace link
 {
 
+using OptionalGroupState = Optional<ClientGroupState>;
 using OptionalTimeline = Optional<Timeline>;
 using OptionalStartStopState = Optional<StartStopState>;
 using OptionalClientStartStopState = Optional<ClientStartStopState>;
@@ -38,6 +40,7 @@ struct SessionState
 {
   Timeline timeline;
   StartStopState startStopState;
+	GroupState groupState;
   GhostXForm ghostXForm;
 };
 
@@ -56,6 +59,7 @@ struct ClientState
 
   Timeline timeline;
   ClientStartStopState startStopState;
+	ClientGroupState groupState;
 };
 
 struct ControllerClientState
@@ -95,14 +99,17 @@ struct RtClientState
 {
   Timeline timeline;
   ClientStartStopState startStopState;
+	ClientGroupState groupState;
   std::chrono::microseconds timelineTimestamp;
   std::chrono::microseconds startStopStateTimestamp;
+  std::chrono::microseconds groupStateTimestamp;
 };
 
 struct IncomingClientState
 {
   OptionalTimeline timeline;
   OptionalClientStartStopState startStopState;
+	OptionalGroupState groupState;
   std::chrono::microseconds timelineTimestamp;
 };
 
@@ -110,6 +117,7 @@ struct ApiState
 {
   Timeline timeline;
   ApiStartStopState startStopState;
+	ApiGroupState groupState;
 };
 
 } // namespace link

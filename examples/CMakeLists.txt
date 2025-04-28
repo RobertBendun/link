@@ -217,3 +217,21 @@ target_compile_definitions(LinkHutSilent PRIVATE
 
 configure_linkhut_executable(LinkHutSilent)
 source_group("LinkHutSilent" FILES ${linkhutsilent_HEADERS} ${linkhutsilent_SOURCES})
+
+# My example
+
+set(diana_HEADERS ${link_HEADERS})
+set(diana_SOURCES diana.cpp)
+
+add_executable(diana
+  ${diana_HEADERS}
+  ${diana_SOURCES}
+)
+
+target_compile_definitions(diana PRIVATE
+  -DLINKHUT_AUDIO_PLATFORM_DUMMY=1
+)
+
+configure_linkhut_executable(diana)
+source_group("diana" FILES ${diana_HEADERS} ${diana_SOURCES})
+
